@@ -1,8 +1,10 @@
+# Create Resource Group
 resource "azurerm_resource_group" "rg1" {
   name     = var.rgname
   location = var.location
 }
 
+# Service Principal Module
 module "ServicePrincipal" {
   source                 = "../modules/ServicePrincipal"
   service_principal_name = var.service_principal_name
@@ -12,8 +14,8 @@ module "ServicePrincipal" {
   ]
 }
 
+# Assign Contributor Role
 resource "azurerm_role_assignment" "rolespn" {
-
   scope                = "/subscriptions/${var.SUB_ID}"
   role_definition_name = "Contributor"
   principal_id         = module.ServicePrincipal.service_principal_object_id
@@ -23,6 +25,7 @@ resource "azurerm_role_assignment" "rolespn" {
   ]
 }
 
+# Key Vault Module
 module "keyvault" {
   source                      = "../modules/keyvault"
   keyvault_name               = var.keyvault_name
@@ -37,6 +40,7 @@ module "keyvault" {
   ]
 }
 
+# Store SP credentials in Key Vault
 resource "azurerm_key_vault_secret" "example" {
   name         = module.ServicePrincipal.client_id
   value        = module.ServicePrincipal.client_secret
@@ -47,7 +51,7 @@ resource "azurerm_key_vault_secret" "example" {
   ]
 }
 
-#create Azure Kubernetes Service
+# Create AKS cluster
 module "aks" {
   source                 = "../modules/aks/"
   service_principal_name = var.service_principal_name
@@ -55,18 +59,18 @@ module "aks" {
   client_secret          = module.ServicePrincipal.client_secret
   location               = var.location
   resource_group_name    = var.rgname
-  cluster_name = var.cluster_name
-  node_pool_name = var.node_pool_name
+  cluster_name           = var.cluster_name
+  node_pool_name         = var.node_pool_name
+  ssh_public_key         = var.ssh_public_key
 
   depends_on = [
     module.ServicePrincipal
   ]
-
 }
 
+# Save kubeconfig locally
 resource "local_file" "kubeconfig" {
-  depends_on   = [module.aks]
-  filename     = "./kubeconfig"
-  content      = module.aks.config
-  
+  depends_on = [module.aks]
+  filename   = "./kubeconfig"
+  content    = module.aks.config
 }
